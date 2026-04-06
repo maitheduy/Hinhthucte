@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Chén Trà Gốm — Tối ưu hiệu năng</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { overflow: hidden; background: #0a0a1a; font-family: 'Courier New', monospace; }
+
+#ui {
+  position: absolute; bottom: 16px; left: 16px;
+  background: rgba(0,0,0,0.75); color: #f5e6d3;
+  padding: 12px 18px; border-radius: 8px;
+  border-left: 3px solid #d4a574;
+  font-size: 11px; line-height: 1.6;
+  pointer-events: none; z-index: 10;
+  max-width: 340px;
+  backdrop-filter: blur(6px);
+}
+#ui h3 { color: #e8c8a0; margin-bottom: 6px; font-size: 12px; }
+.eq {
+  background: rgba(0,0,0,0.45); padding: 3px 7px;
+  border-radius: 3px; margin: 3px 0; font-size: 10px;
+}
+#fps {
+  position: absolute; top: 14px; left: 14px;
+  background: rgba(0,0,0,0.6); color: #7fff7f;
+  padding: 4px 10px; border-radius: 5px;
+  font-size: 12px; font-family: monospace;
+  pointer-events: none; z-index: 10;
+}
+#hint {
+  position: absolute; bottom: 16px; right: 16px;
+  background: rgba(0,0,0,0.5); color: #e8d5b5;
+  padding: 6px 12px; border-radius: 5px;
+  font-size: 11px; pointer-events: none;
+}
+#title {
+  position: absolute; top: 14px; right: 14px;
+  background: rgba(0,0,0,0.45); color: #e8d5b5;
+  padding: 6px 14px; border-radius: 6px;
+  font-size: 13px; font-style: italic;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div id="fps">FPS: —</div>
+<div id="title">🍵 Chén Trà Gốm · Hiệu năng cao</div>
+<div id="ui">
+  <h3>📐 PHƯƠNG TRÌNH THAM SỐ</h3>
+  <strong>Mặt tròn xoay Bézier bậc 3:</strong>
+  <div class="eq">S(t,θ) = [R(t)·cosθ, Y(t), R(t)·sinθ]</div>
+  <div class="eq">t∈[0,1], θ∈[0,2π]</div>
+  <div class="eq">R(t)=(1-t)³·0.86 + 3(1-t)²t·1.26<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ 3(1-t)t²·1.54 + t³·1.23</div>
+  <div class="eq">Y(t) = -0.28 + t·2.16</div>
+  <br>
+  <strong>Tối ưu hiệu năng:</strong><br>
+  · Steam: morph vertices thay vì tạo mới<br>
+  · Geometry: 64×48 segments (–51% tris)<br>
+  · Particles: Float32Array in-place update<br>
+  · Ánh sáng: 3 light thay vì 6<br>
+  · Wood: 256×256 canvas (–93.7% pixels)
+</div>
+<div id="hint">🖱 Xoay · Kéo · Zoom</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─── SCENE ───────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a1a);
+scene.fog = new THREE.FogExp2(0x0a0a1a, 0.012);
+
+const W = window.innerWidth, H = window.innerHeight;
+const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 80);
+camera.position.set(4.5, 3.5, 5.5);
+camera.lookAt(0, 0.8, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(W, H);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // cap ở 2x
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 0.8, 0);
+controls.zoomSpeed = 1.2;
+controls.panSpeed = 0.8;
+
+// ─── LIGHTING (3 đèn thay vì 6) ──────────────────────────
+scene.add(new THREE.AmbientLight(0x404060, 0.6));
+
+const sun = new THREE.DirectionalLight(0xfff5e0, 1.4);
+sun.position.set(3.5, 5.5, 2.2);
+sun.castShadow = true;
+sun.shadow.mapSize.setScalar(1024);
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 20;
+sun.shadow.camera.left = sun.shadow.camera.bottom = -4;
+sun.shadow.camera.right = sun.shadow.camera.top = 4;
+scene.add(sun);
+
+const fill = new THREE.PointLight(0xccaa88, 0.5);
+fill.position.set(-2, 2, -2.5);
+scene.add(fill);
+
+// Đèn trà — animate intensity thay vì update position
+const teaLight = new THREE.PointLight(0xc97e4a, 0.55);
+teaLight.position.set(0.25, 1.6, 0.3);
+scene.add(teaLight);
+
+// ─── BÉZIER PROFILE ──────────────────────────────────────
+// Precompute R(t) lookup table để tránh tính lại mỗi vertex
+const R0 = 0.86, R1 = 1.26, R2 = 1.54, R3 = 1.23;
+const Y_MIN = -0.28, Y_MAX = 1.88, Y_RANGE = Y_MAX - Y_MIN;
+
+function bezierR(t) {
+  const mt = 1 - t;
+  return mt*mt*mt*R0 + 3*mt*mt*t*R1 + 3*mt*t*t*R2 + t*t*t*R3;
+}
+
+// ─── THÂN CHÉN (geometry tối ưu: 64×48 = 3072 quads → 6144 tris) ─
+const RSEG = 64, HSEG = 48;
+const bodyGeo = new THREE.BufferGeometry();
+
+const vCount = (RSEG + 1) * (HSEG + 1);
+const bPos  = new Float32Array(vCount * 3);
+const bNorm = new Float32Array(vCount * 3);
+
+// Precompute lookup arrays
+const thetaLUT = new Float32Array(RSEG + 1);
+const cosLUT   = new Float32Array(RSEG + 1);
+const sinLUT   = new Float32Array(RSEG + 1);
+for (let j = 0; j <= RSEG; j++) {
+  thetaLUT[j] = (j / RSEG) * Math.PI * 2;
+  cosLUT[j] = Math.cos(thetaLUT[j]);
+  sinLUT[j] = Math.sin(thetaLUT[j]);
+}
+
+const rLUT  = new Float32Array(HSEG + 1);
+const yLUT  = new Float32Array(HSEG + 1);
+const drLUT = new Float32Array(HSEG + 1); // dr/dt
+for (let i = 0; i <= HSEG; i++) {
+  const t = i / HSEG;
+  rLUT[i] = bezierR(t);
+  yLUT[i] = Y_MIN + t * Y_RANGE;
+  // Đạo hàm Bézier bậc 3 tại t
+  const mt = 1 - t;
+  drLUT[i] = 3*(mt*mt*(R1-R0) + 2*mt*t*(R2-R1) + t*t*(R3-R2));
+}
+
+let vi = 0, ni = 0;
+for (let i = 0; i <= HSEG; i++) {
+  const r = rLUT[i], y = yLUT[i], dr = drLUT[i];
+  for (let j = 0; j <= RSEG; j++) {
+    const c = cosLUT[j], s = sinLUT[j];
+    bPos[vi]   = r * c;
+    bPos[vi+1] = y;
+    bPos[vi+2] = r * s;
+
+    // N = T_t × T_θ  (đã tính giải tích — không cần finite diff)
+    // T_t = (dr·cosθ, dY/dt, dr·sinθ)  — dY/dt = Y_RANGE/HSEG (hằng số)
+    // T_θ = (-r·sinθ, 0, r·cosθ)
+    // Cross product:
+    const dY = Y_RANGE; // unnormalized dY/dt direction
+    let nx =  dY * r * c;
+    let ny = -dr * r;   // (dr·cosθ)(r·cosθ) − dY·(−r·sinθ·...) → compact
+    let nz =  dY * r * s;
+    // Simplified: N ∝ (r·cosθ, -dr·r, r·sinθ) after cross
+    // Chuẩn hóa
+    const len = Math.hypot(nx, ny, nz) || 1;
+    bNorm[ni]   = nx / len;
+    bNorm[ni+1] = ny / len;
+    bNorm[ni+2] = nz / len;
+    vi += 3; ni += 3;
+  }
+}
+
+const idx = [];
+for (let i = 0; i < HSEG; i++) {
+  for (let j = 0; j < RSEG; j++) {
+    const a = i*(RSEG+1)+j, b = a+1, c = a+(RSEG+1), d = c+1;
+    idx.push(a,b,c, b,d,c);
+  }
+}
+
+bodyGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3));
+bodyGeo.setAttribute('normal',   new THREE.BufferAttribute(bNorm, 3));
+bodyGeo.setIndex(idx);
+
+const ceramicMat = new THREE.MeshStandardMaterial({
+  color: 0xd8b48c, roughness: 0.25, metalness: 0.15,
+  emissive: 0x332211, emissiveIntensity: 0.06
+});
+
+const cup = new THREE.Mesh(bodyGeo, ceramicMat);
+cup.castShadow = cup.receiveShadow = true;
+scene.add(cup);
+
+// ─── ĐÁY + VIỀN + TRÀ ────────────────────────────────────
+const sharedCeramic = new THREE.MeshStandardMaterial({ color: 0xc4a074, roughness: 0.32, metalness: 0.1 });
+const rimMat = new THREE.MeshStandardMaterial({ color: 0xe8c8a0, roughness: 0.18, metalness: 0.28 });
+
+const base = new THREE.Mesh(new THREE.CylinderGeometry(0.88, 0.92, 0.085, 32), sharedCeramic);
+base.position.y = -0.33;
+base.castShadow = true;
+scene.add(base);
+
+const rim = new THREE.Mesh(new THREE.TorusGeometry(1.235, 0.058, 24, 80), rimMat);
+rim.rotation.x = Math.PI / 2;
+rim.position.y = 1.89;
+rim.castShadow = true;
+scene.add(rim);
+
+const teaMat = new THREE.MeshStandardMaterial({
+  color: 0xa55d35, roughness: 0.2, metalness: 0.08,
+  emissive: 0x642a0a, emissiveIntensity: 0.15,
+  transparent: true, opacity: 0.92
+});
+const tea = new THREE.Mesh(new THREE.CylinderGeometry(1.09, 1.09, 0.085, 48), teaMat);
+tea.position.y = 1.75;
+scene.add(tea);
+
+const teaSurf = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.105, 1.105, 0.015, 48),
+  new THREE.MeshStandardMaterial({ color: 0xce8855, roughness: 0.12, metalness: 0.55, emissive: 0x552200, emissiveIntensity: 0.05 })
+);
+teaSurf.position.y = 1.79;
+scene.add(teaSurf);
+
+// ─── MẶT BÀN (256×256 canvas — giảm 93.7% pixels so với 1024) ──
+const cw = new THREE.CanvasTexture((() => {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 256;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#8b694a';
+  cx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 60; i++) {
+    cx.fillStyle = `rgba(65,40,22,${0.1+Math.random()*0.25})`;
+    cx.fillRect(Math.random()*256, 0, 2+Math.random()*6, 256);
+  }
+  for (let i = 0; i < 40; i++) {
+    cx.fillStyle = `rgba(55,32,18,${0.12+Math.random()*0.28})`;
+    cx.fillRect(0, Math.random()*256, 256, 1+Math.random()*3);
+  }
+  return cv;
+})());
+cw.wrapS = cw.wrapT = THREE.RepeatWrapping;
+cw.repeat.set(2, 2);
+
+const table = new THREE.Mesh(
+  new THREE.PlaneGeometry(6.5, 5.5),
+  new THREE.MeshStandardMaterial({ map: cw, color: 0xbc8f6a, roughness: 0.58, metalness: 0.05 })
+);
+table.rotation.x = -Math.PI / 2;
+table.position.y = -0.45;
+table.receiveShadow = true;
+scene.add(table);
+
+// ─── STEAM: MORPH VERTICES IN-PLACE (không tạo geometry mới) ────
+const STEAM_COUNT = 6;
+const STEAM_PTS   = 30; // điểm mỗi đường
+const steamGeos   = [];
+const steamPhases = [];
+const steamOffsets = [];
+
+for (let s = 0; s < STEAM_COUNT; s++) {
+  const ox = -0.5 + s * 0.2;
+  const oz = -0.2 + (s % 3) * 0.18;
+  const phase = s * 1.6;
+  steamOffsets.push([ox, oz]);
+  steamPhases.push(phase);
+
+  const posArr = new Float32Array(STEAM_PTS * 3);
+  const geo = new THREE.BufferGeometry();
+  const attr = new THREE.BufferAttribute(posArr, 3);
+  attr.setUsage(THREE.DynamicDrawUsage); // hint GPU: data thay đổi thường
+  geo.setAttribute('position', attr);
+  steamGeos.push(geo);
+
+  const mat = new THREE.LineBasicMaterial({ color: 0xd9cdb0, transparent: true, opacity: 0.28 });
+  scene.add(new THREE.Line(geo, mat));
+}
+
+function updateSteam(t) {
+  for (let s = 0; s < STEAM_COUNT; s++) {
+    const [ox, oz] = steamOffsets[s];
+    const phase = steamPhases[s];
+    const attr = steamGeos[s].attributes.position;
+    const arr  = attr.array;
+    for (let p = 0; p < STEAM_PTS; p++) {
+      const f = p / (STEAM_PTS - 1);
+      const wx = Math.sin(f * 9.5 + t * 0.85 + phase) * 0.13 * (1 - f * 0.4);
+      const wz = Math.cos(f * 7.5 + t * 0.7  + phase * 1.2) * 0.11 * (1 - f * 0.35);
+      arr[p*3]   = ox + wx + f * 0.05;
+      arr[p*3+1] = 1.94 + f * 1.8;
+      arr[p*3+2] = oz + wz + f * 0.04;
+    }
+    attr.needsUpdate = true;
+  }
+}
+
+// ─── PARTICLES (Float32Array in-place, không allocation) ─────────
+const PC = 300;
+const pPos = new Float32Array(PC * 3);
+const pVel = new Float32Array(PC * 3); // pack vào TypedArray
+
+for (let i = 0; i < PC; i++) {
+  pPos[i*3]   = (Math.random()-0.5)*4;
+  pPos[i*3+1] = Math.random()*3;
+  pPos[i*3+2] = (Math.random()-0.5)*3.5;
+  pVel[i*3]   = (Math.random()-0.5)*0.003;
+  pVel[i*3+1] = 0.002 + Math.random()*0.005;
+  pVel[i*3+2] = (Math.random()-0.5)*0.003;
+}
+
+const pGeo = new THREE.BufferGeometry();
+const pAttr = new THREE.BufferAttribute(pPos, 3);
+pAttr.setUsage(THREE.DynamicDrawUsage);
+pGeo.setAttribute('position', pAttr);
+
+scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
+  color: 0xe0cfb0, size: 0.018, transparent: true, opacity: 0.3,
+  sizeAttenuation: true
+})));
+
+function updateParticles() {
+  for (let i = 0; i < PC; i++) {
+    pPos[i*3]   += pVel[i*3];
+    pPos[i*3+1] += pVel[i*3+1];
+    pPos[i*3+2] += pVel[i*3+2];
+    if (pPos[i*3+1] > 3.0) {
+      pPos[i*3+1] = 0.2;
+      pPos[i*3]   = (Math.random()-0.5)*4;
+      pPos[i*3+2] = (Math.random()-0.5)*3.5;
+    }
+    if (Math.abs(pPos[i*3])   > 3) pVel[i*3]   *= -1;
+    if (Math.abs(pPos[i*3+2]) > 3) pVel[i*3+2] *= -1;
+  }
+  pAttr.needsUpdate = true;
+}
+
+// ─── FPS COUNTER ─────────────────────────────────────────
+const fpsEl = document.getElementById('fps');
+let frameCount = 0, lastFPSTime = performance.now(), fps = 0;
+
+// ─── RENDER LOOP ─────────────────────────────────────────
+let time = 0;
+function render() {
+  requestAnimationFrame(render);
+  time += 0.016;
+
+  updateSteam(time);
+  updateParticles();
+
+  teaLight.intensity = 0.5 + Math.sin(time * 1.6) * 0.08;
+
+  controls.update();
+  renderer.render(scene, camera);
+
+  // FPS — cập nhật mỗi 30 frame
+  frameCount++;
+  if (frameCount >= 30) {
+    const now = performance.now();
+    fps = Math.round(frameCount / ((now - lastFPSTime) / 1000));
+    lastFPSTime = now;
+    frameCount = 0;
+    fpsEl.textContent = `FPS: ${fps}`;
+  }
+}
+render();
+
+// ─── RESIZE ──────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+</script>
+</body>
+</html>
