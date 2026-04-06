@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Chén Trà Gốm 3D - Mặt cắt quai chân thực</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Georgia', serif;
+        }
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: #f5e6d3;
+            padding: 12px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+            pointer-events: none;
+            z-index: 10;
+            font-size: 12px;
+            font-family: monospace;
+            border-left: 3px solid #d4a574;
+            max-width: 300px;
+            line-height: 1.4;
+        }
+        #title {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            color: #e8d5b5;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-style: italic;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .controls-note {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            color: #e8d5b5;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            font-family: monospace;
+            backdrop-filter: blur(4px);
+        }
+        @media (max-width: 768px) {
+            #info, #title { font-size: 10px; }
+            #info { max-width: 240px; }
+            .controls-note { font-size: 10px; padding: 5px 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="title">
+        🍵 Chén Trà Gốm | Mặt cắt quai chi tiết
+    </div>
+    <div id="info">
+        📐 <strong>Phân tích hình học chi tiết:</strong><br>
+        • Thân chén: Đường cong Bézier bậc 3: r(y) = Σ Bᵢ³(t)·Pᵢ<br>
+        • Quai chén: Parabol với mặt cắt hình elip + khớp nối chân thực<br>
+        • Mặt tiếp xúc: Vùng chuyển tiếp dạng phễu giữa quai và thân<br>
+        • Mặt bàn: Mặt phẳng với texture vân gỗ<br>
+        🕯️ Nguồn sáng 3 điểm | ✨ Đổ bóng và highlight
+    </div>
+    <div class="controls-note">
+        🖱️ <strong>Điều khiển:</strong> Chuột trái = Xoay | Chuột phải = Kéo | Cuộn = Zoom
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // --- Khởi tạo scene ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+        scene.fog = new THREE.FogExp2(0x0a0a1a, 0.005);
+
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(5.5, 4.0, 6.2);
+        camera.lookAt(0, 0.9, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        labelRenderer.domElement.style.left = '0px';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+
+        // --- Điều khiển camera ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.autoRotate = false;
+        controls.enableZoom = true;
+        controls.zoomSpeed = 1.2;
+        controls.enablePan = true;
+        controls.panSpeed = 0.8;
+        controls.rotateSpeed = 1.0;
+        controls.target.set(0, 0.95, 0);
+        
+        // --- Hệ thống ánh sáng ---
+        const ambientLight = new THREE.AmbientLight(0x404060, 0.5);
+        scene.add(ambientLight);
+        
+        // Đèn chính
+        const mainLight = new THREE.DirectionalLight(0xfff5e0, 1.3);
+        mainLight.position.set(3.5, 5.8, 2.2);
+        mainLight.castShadow = true;
+        mainLight.receiveShadow = true;
+        mainLight.shadow.mapSize.width = 1024;
+        mainLight.shadow.mapSize.height = 1024;
+        mainLight.shadow.camera.near = 0.5;
+        mainLight.shadow.camera.far = 8;
+        mainLight.shadow.camera.left = -6;
+        mainLight.shadow.camera.right = 6;
+        mainLight.shadow.camera.top = 6;
+        mainLight.shadow.camera.bottom = -6;
+        scene.add(mainLight);
+        
+        // Đèn phụ
+        const fillLight = new THREE.PointLight(0xaa8866, 0.45);
+        fillLight.position.set(0, -0.3, 0.8);
+        scene.add(fillLight);
+        
+        // Rim light
+        const rimLight = new THREE.PointLight(0xffaa77, 0.4);
+        rimLight.position.set(-2.0, 2.2, -2.8);
+        scene.add(rimLight);
+        
+        // Ánh sáng ấm từ trà
+        const teaLight = new THREE.PointLight(0xc97e4a, 0.5);
+        teaLight.position.set(0.25, 1.48, 0.35);
+        scene.add(teaLight);
+        
+        // Đèn hắt
+        const rightFill = new THREE.PointLight(0xccaa88, 0.3);
+        rightFill.position.set(2.5, 1.3, 1.2);
+        scene.add(rightFill);
+        
+        // ========== MẶT BÀN GỖ ==========
+        const tableWidth = 7.0;
+        const tableDepth = 6.0;
+        
+        const canvasWood = document.createElement('canvas');
+        canvasWood.width = 1024;
+        canvasWood.height = 1024;
+        const ctxWood = canvasWood.getContext('2d');
+        
+        ctxWood.fillStyle = '#8b694a';
+        ctxWood.fillRect(0, 0, 1024, 1024);
+        
+        for (let i = 0; i < 220; i++) {
+            const x = Math.random() * 1024;
+            const width = 2 + Math.random() * 6;
+            ctxWood.fillStyle = `rgba(75, 50, 30, ${0.1 + Math.random() * 0.25})`;
+            ctxWood.fillRect(x, 0, width, 1024);
+        }
+        
+        for (let i = 0; i < 150; i++) {
+            const y = Math.random() * 1024;
+            const height = 1.5 + Math.random() * 4.5;
+            ctxWood.fillStyle = `rgba(65, 40, 22, ${0.12 + Math.random() * 0.28})`;
+            ctxWood.fillRect(0, y, 1024, height);
+        }
+        
+        for (let i = 0; i < 60; i++) {
+            ctxWood.beginPath();
+            const cx = Math.random() * 1024;
+            const cy = Math.random() * 1024;
+            const rad = 8 + Math.random() * 20;
+            ctxWood.ellipse(cx, cy, rad, rad * 0.7, 0, 0, Math.PI * 2);
+            ctxWood.fillStyle = `rgba(55, 32, 18, ${0.2 + Math.random() * 0.3})`;
+            ctxWood.fill();
+            ctxWood.beginPath();
+            ctxWood.ellipse(cx - 2, cy - 1, rad * 0.4, rad * 0.3, 0, 0, Math.PI * 2);
+            ctxWood.fillStyle = `rgba(90, 60, 40, ${0.15 + Math.random() * 0.25})`;
+            ctxWood.fill();
+        }
+        
+        const woodTexture = new THREE.CanvasTexture(canvasWood);
+        woodTexture.wrapS = THREE.RepeatWrapping;
+        woodTexture.wrapT = THREE.RepeatWrapping;
+        woodTexture.repeat.set(2.2, 2.2);
+        
+        const tableGeometry = new THREE.PlaneGeometry(tableWidth, tableDepth);
+        const tableMaterial = new THREE.MeshStandardMaterial({
+            map: woodTexture,
+            color: 0xbc8f6a,
+            roughness: 0.58,
+            metalness: 0.05,
+            side: THREE.DoubleSide
+        });
+        
+        const tableMesh = new THREE.Mesh(tableGeometry, tableMaterial);
+        tableMesh.rotation.x = -Math.PI / 2;
+        tableMesh.position.y = -0.48;
+        tableMesh.receiveShadow = true;
+        scene.add(tableMesh);
+        
+        // --- Thân chén ---
+        function radiusBezier(y) {
+            const yMin = -0.28;
+            const yMax = 1.88;
+            const t = Math.max(0, Math.min(1, (y - yMin) / (yMax - yMin)));
+            const R = [0.86, 1.26, 1.54, 1.23];
+            const mt = 1 - t;
+            return mt*mt*mt * R[0] + 3*mt*mt*t * R[1] + 3*mt*t*t * R[2] + t*t*t * R[3];
+        }
+        
+        const radialSegments = 80;
+        const heightSegments = 64;
+        const bodyGeometry = new THREE.BufferGeometry();
+        const bodyVertices = [];
+        const bodyIndices = [];
+        const bodyNormals = [];
+        
+        const yStart = -0.28;
+        const yEnd = 1.88;
+        
+        for (let i = 0; i <= heightSegments; i++) {
+            const y = yStart + (i / heightSegments) * (yEnd - yStart);
+            const r = radiusBezier(y);
+            for (let j = 0; j <= radialSegments; j++) {
+                const angle = (j / radialSegments) * Math.PI * 2;
+                const x = r * Math.cos(angle);
+                const z = r * Math.sin(angle);
+                bodyVertices.push(x, y, z);
+                
+                const eps = 0.015;
+                const yUp = Math.min(yEnd, y + eps);
+                const yDown = Math.max(yStart, y - eps);
+                const rUp = radiusBezier(yUp);
+                const rDown = radiusBezier(yDown);
+                const dr = (rUp - rDown) / (2 * eps);
+                const nxDir = Math.cos(angle);
+                const nzDir = Math.sin(angle);
+                let nx = nxDir;
+                let ny = -dr;
+                let nz = nzDir;
+                const normLen = Math.hypot(nx, ny, nz);
+                if (normLen > 0) { nx /= normLen; ny /= normLen; nz /= normLen; }
+                bodyNormals.push(nx, ny, nz);
+            }
+        }
+        
+        for (let i = 0; i < heightSegments; i++) {
+            for (let j = 0; j < radialSegments; j++) {
+                const a = i * (radialSegments + 1) + j;
+                const b = i * (radialSegments + 1) + j + 1;
+                const c = (i + 1) * (radialSegments + 1) + j;
+                const d = (i + 1) * (radialSegments + 1) + j + 1;
+                bodyIndices.push(a, b, c);
+                bodyIndices.push(b, d, c);
+            }
+        }
+        
+        bodyGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bodyVertices), 3));
+        bodyGeometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(bodyNormals), 3));
+        bodyGeometry.setIndex(bodyIndices);
+        
+        const ceramicMaterial = new THREE.MeshStandardMaterial({
+            color: 0xd8b48c,
+            roughness: 0.26,
+            metalness: 0.14,
+            emissive: 0x332211,
+            emissiveIntensity: 0.06
+        });
+        
+        const teaCupBody = new THREE.Mesh(bodyGeometry, ceramicMaterial);
+        teaCupBody.castShadow = true;
+        teaCupBody.receiveShadow = true;
+        scene.add(teaCupBody);
+        
+        // --- Đáy chén ---
+        const baseGeo = new THREE.CylinderGeometry(0.89, 0.93, 0.085, 40);
+        const baseMat = new THREE.MeshStandardMaterial({ color: 0xc4a074, roughness: 0.33, metalness: 0.1 });
+        const baseDisc = new THREE.Mesh(baseGeo, baseMat);
+        baseDisc.position.y = -0.33;
+        baseDisc.castShadow = true;
+        scene.add(baseDisc);
+        
+        // --- Miệng chén ---
+        const rimGeo = new THREE.TorusGeometry(1.235, 0.058, 40, 120);
+        const rimMat = new THREE.MeshStandardMaterial({ color: 0xe8c8a0, roughness: 0.19, metalness: 0.27 });
+        const rimRing = new THREE.Mesh(rimGeo, rimMat);
+        rimRing.rotation.x = Math.PI / 2;
+        rimRing.position.y = 1.89;
+        rimRing.castShadow = true;
+        scene.add(rimRing);
+        
+        const outerRimGeo = new THREE.TorusGeometry(1.265, 0.042, 40, 120);
+        const outerRim = new THREE.Mesh(outerRimGeo, rimMat);
+        outerRim.rotation.x = Math.PI / 2;
+        outerRim.position.y = 1.895;
+        outerRim.castShadow = true;
+        scene.add(outerRim);
+        
+        // --- Nước trà ---
+        const teaLiquidGeo = new THREE.CylinderGeometry(1.10, 1.10, 0.085, 56);
+        const teaMat = new THREE.MeshStandardMaterial({
+            color: 0xa55d35,
+            roughness: 0.24,
+            metalness: 0.06,
+            emissive: 0x642a0a,
+            emissiveIntensity: 0.12,
+            transparent: true,
+            opacity: 0.92
+        });
+        const teaLiquid = new THREE.Mesh(teaLiquidGeo, teaMat);
+        teaLiquid.position.y = 1.75;
+        teaLiquid.castShadow = true;
+        scene.add(teaLiquid);
+        
+        const teaSurfaceGeo = new THREE.CylinderGeometry(1.11, 1.11, 0.02, 56);
+        const teaSurfaceMat = new THREE.MeshStandardMaterial({
+            color: 0xce8855,
+            roughness: 0.16,
+            metalness: 0.48,
+            emissive: 0x552200,
+            emissiveIntensity: 0.05
+        });
+        const teaSurface = new THREE.Mesh(teaSurfaceGeo, teaSurfaceMat);
+        teaSurface.position.y = 1.79;
+        scene.add(teaSurface);
+        
+        // ========== QUAI CHÉN VỚI MẶT CẮT CHI TIẾT ==========
+        
+        const handleBottomY = 0.58;
+        const handleTopY = 1.62;
+        const handleAngle = 0.72;
+        
+        const rBottom = radiusBezier(handleBottomY);
+        const rTop = radiusBezier(handleTopY);
+        
+        const attachBottom = new THREE.Vector3(
+            rBottom * Math.cos(handleAngle),
+            handleBottomY,
+            rBottom * Math.sin(handleAngle)
+        );
+        
+        const attachTop = new THREE.Vector3(
+            rTop * Math.cos(handleAngle),
+            handleTopY,
+            rTop * Math.sin(handleAngle)
+        );
+        
+        const farDistance = 2.4;
+        const apexY = (handleBottomY + handleTopY) / 2 + 0.02;
+        
+        const apexPoint = new THREE.Vector3(
+            farDistance * Math.cos(handleAngle),
+            apexY,
+            farDistance * Math.sin(handleAngle)
+        );
+        
+        // Đường cong parabol chính
+        const quadraticCurve = new THREE.QuadraticBezierCurve3(attachBottom, apexPoint, attachTop);
+        
+        // Ống quai chính
+        const tubeGeo = new THREE.TubeGeometry(quadraticCurve, 96, 0.112, 20, false);
+        const handleMat = new THREE.MeshStandardMaterial({ 
+            color: 0xd0a87a, 
+            roughness: 0.31, 
+            metalness: 0.13,
+            emissive: 0x331c0a,
+            emissiveIntensity: 0.04
+        });
+        const handle = new THREE.Mesh(tubeGeo, handleMat);
+        handle.castShadow = true;
+        handle.receiveShadow = true;
+        scene.add(handle);
+        
+        // ========== MẶT CẮT TIẾP XÚC GIỮA QUAI VÀ THÂN CHÉN ==========
+        
+        // Hàm tạo mặt cắt hình elip tại điểm tiếp xúc
+        function createContactSection(centerPoint, normalDir, scaleX, scaleY, depth, color) {
+            const group = new THREE.Group();
+            
+            // Tính vector pháp tuyến và tiếp tuyến
+            const up = new THREE.Vector3(0, 1, 0);
+            const tangent = new THREE.Vector3().crossVectors(normalDir, up).normalize();
+            const bitangent = new THREE.Vector3().crossVectors(tangent, normalDir).normalize();
+            
+            // Tạo hình elip 3D (dạng đĩa)
+            const ellipsePoints = [];
+            const segments = 32;
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                const x = Math.cos(angle) * scaleX;
+                const y = Math.sin(angle) * scaleY;
+                const point = new THREE.Vector3(x, y, 0);
+                // Chuyển đổi sang không gian thế giới
+                const worldPoint = centerPoint.clone();
+                worldPoint.add(tangent.clone().multiplyScalar(point.x));
+                worldPoint.add(bitangent.clone().multiplyScalar(point.y));
+                ellipsePoints.push(worldPoint);
+            }
+            
+            // Đĩa mặt cắt
+            const discGeometry = new THREE.BufferGeometry();
+            const discVertices = [];
+            for (let i = 0; i < ellipsePoints.length; i++) {
+                discVertices.push(ellipsePoints[i].x, ellipsePoints[i].y, ellipsePoints[i].z);
+            }
+            discGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(discVertices), 3));
+            
+            // Tạo mặt cắt dạng phễu (chuyển tiếp)
+            const funnelPoints = [];
+            const innerRadius = 0.09;
+            const outerRadius = 0.16;
+            
+            for (let i = 0; i <= 24; i++) {
+                const t = i / 24; // 0 đến 1
+                const radius = innerRadius + (outerRadius - innerRadius) * (1 - t);
+                const height = t * 0.08;
+                
+                for (let j = 0; j <= 16; j++) {
+                    const angle = (j / 16) * Math.PI * 2;
+                    const x = Math.cos(angle) * radius;
+                    const z = Math.sin(angle) * radius;
+                    const point = new THREE.Vector3(x, height, z);
+                    
+                    // Xoay theo hướng của quai
+                    const worldPoint = centerPoint.clone();
+                    worldPoint.add(tangent.clone().multiplyScalar(point.x));
+                    worldPoint.add(up.clone().multiplyScalar(point.y));
+                    worldPoint.add(bitangent.clone().multiplyScalar(point.z));
+                    funnelPoints.push(worldPoint);
+                }
+            }
+            
+            // Vẽ các vòng tròn đồng tâm để tạo hiệu ứng mặt cắt
+            const ringMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.25, metalness: 0.18 });
+            
+            for (let r = 0.1; r <= 0.18; r += 0.02) {
+                const ringGeo = new THREE.TorusGeometry(r, 0.008, 16, 48);
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.position.copy(centerPoint);
+                
+                // Xoay ring vuông góc với hướng quai
+                const quat = new THREE.Quaternion().setFromUnitVectors(
+                    new THREE.Vector3(0, 1, 0),
+                    normalDir
+                );
+                ring.quaternion.copy(quat);
+                scene.add(ring);
+            }
+            
+            // Thêm các đường gân chi tiết
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xb8946a });
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const startPoint = centerPoint.clone();
+                const endPoint = centerPoint.clone();
+                const offset = 0.16;
+                startPoint.add(tangent.clone().multiplyScalar(Math.cos(angle) * 0.1));
+                startPoint.add(bitangent.clone().multiplyScalar(Math.sin(angle) * 0.1));
+                endPoint.add(tangent.clone().multiplyScalar(Math.cos(angle) * offset));
+                endPoint.add(bitangent.clone().multiplyScalar(Math.sin(angle) * offset));
+                
+                const lineGeo = new THREE.BufferGeometry();
+                const lineVerts = [startPoint.x, startPoint.y, startPoint.z, endPoint.x, endPoint.y, endPoint.z];
+                lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lineVerts), 3));
+                const lineObj = new THREE.Line(lineGeo, lineMat);
+                scene.add(lineObj);
+            }
+        }
+        
+        // Tính vector hướng của quai tại điểm tiếp xúc
+        const tangentBottom = quadraticCurve.getTangent(0).normalize();
+        const tangentTop = quadraticCurve.getTangent(1).normalize();
+        
+        // Tạo mặt cắt tại điểm tiếp xúc dưới
+        createContactSection(attachBottom, tangentBottom, 0.135, 0.115, 0.12, 0xc89462);
+        
+        // Tạo mặt cắt tại điểm tiếp xúc trên
+        createContactSection(attachTop, tangentTop, 0.132, 0.112, 0.12, 0xc89462);
+        
+        // Thêm khớp nối dạng phễu bao quanh
+        const funnelMat = new THREE.MeshStandardMaterial({ color: 0xd0a87a, roughness: 0.28, metalness: 0.12 });
+        
+        // Khớp dưới - dạng phễu
+        const funnelBottomGeo = new THREE.CylinderGeometry(0.16, 0.12, 0.09, 16);
+        const funnelBottom = new THREE.Mesh(funnelBottomGeo, funnelMat);
+        funnelBottom.position.copy(attachBottom);
+        
+        // Xoay theo hướng quai
+        const quatBottom = new THREE.Quaternion().setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            tangentBottom
+        );
+        funnelBottom.quaternion.copy(quatBottom);
+        scene.add(funnelBottom);
+        
+        // Khớp trên
+        const funnelTopGeo = new THREE.CylinderGeometry(0.158, 0.118, 0.09, 16);
+        const funnelTop = new THREE.Mesh(funnelTopGeo, funnelMat);
+        funnelTop.position.copy(attachTop);
+        const quatTop = new THREE.Quaternion().setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            tangentTop
+        );
+        funnelTop.quaternion.copy(quatTop);
+        scene.add(funnelTop);
+        
+        // Thêm các vòng tròn trang trí tại khớp nối
+        const decorRingMat = new THREE.MeshStandardMaterial({ color: 0xb87c48, metalness: 0.28 });
+        
+        const bottomDecorGeo = new THREE.TorusGeometry(0.142, 0.012, 16, 40);
+        const bottomDecor = new THREE.Mesh(bottomDecorGeo, decorRingMat);
+        bottomDecor.position.copy(attachBottom);
+        bottomDecor.quaternion.copy(quatBottom);
+        scene.add(bottomDecor);
+        
+        const topDecorGeo = new THREE.TorusGeometry(0.14, 0.012, 16, 40);
+        const topDecor = new THREE.Mesh(topDecorGeo, decorRingMat);
+        topDecor.position.copy(attachTop);
+        topDecor.quaternion.copy(quatTop);
+        scene.add(topDecor);
+        
+        // --- Hơi nước ---
+        const steamLines = [];
+        
+        function createSteamCurve(offsetX, offsetZ, timeOffset) {
+            const points = [];
+            for (let t = 0; t <= 1; t += 0.035) {
+                const y = 1.94 + t * 1.85;
+                const waveX = Math.sin(t * Math.PI * 3.2 + timeOffset) * 0.14 * (1 - t * 0.45);
+                const waveZ = Math.cos(t * Math.PI * 2.5 + timeOffset * 1.2) * 0.12 * (1 - t * 0.4);
+                const driftX = t * 0.06;
+                const driftZ = t * 0.04;
+                const x = offsetX + waveX + driftX;
+                const z = offsetZ + waveZ + driftZ;
+                points.push(new THREE.Vector3(x, y, z));
+            }
+            return new THREE.CatmullRomCurve3(points);
+        }
+        
+        const steamMat = new THREE.LineBasicMaterial({ color: 0xd9cdb0, transparent: true, opacity: 0.32 });
+        
+        for (let i = 0; i < 8; i++) {
+            const offX = -0.6 + i * 0.22;
+            const offZ = -0.3 + (i % 3) * 0.22;
+            const phase = i * 1.6;
+            const curve = createSteamCurve(offX, offZ, phase);
+            const divisions = 45;
+            const geom = new THREE.BufferGeometry();
+            const verticesSteam = [];
+            for (let t = 0; t <= 1; t += 1/divisions) {
+                const pt = curve.getPoint(t);
+                verticesSteam.push(pt.x, pt.y, pt.z);
+            }
+            geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verticesSteam), 3));
+            const line = new THREE.Line(geom, steamMat);
+            scene.add(line);
+            steamLines.push({ line, offX, offZ, speed: 0.35 + Math.random() * 0.4 });
+        }
+        
+        // --- Bóng đổ ---
+        const shadowDiscGeo = new THREE.CylinderGeometry(1.9, 2.1, 0.06, 36);
+        const shadowMat = new THREE.MeshStandardMaterial({ color: 0x221a12, roughness: 0.88, metalness: 0.01, transparent: true, opacity: 0.38 });
+        const shadowDisc = new THREE.Mesh(shadowDiscGeo, shadowMat);
+        shadowDisc.position.y = -0.46;
+        shadowDisc.receiveShadow = true;
+        scene.add(shadowDisc);
+        
+        // --- Particle system ---
+        const particleCount = 450;
+        const particleGeometry = new THREE.BufferGeometry();
+        const particlePositions = new Float32Array(particleCount * 3);
+        const particleVelocities = [];
+        for (let i = 0; i < particleCount; i++) {
+            particlePositions[i*3] = (Math.random() - 0.5) * 5.2;
+            particlePositions[i*3+1] = Math.random() * 3.6;
+            particlePositions[i*3+2] = (Math.random() - 0.5) * 4.8;
+            particleVelocities.push({
+                x: (Math.random() - 0.5) * 0.003,
+                y: 0.002 + Math.random() * 0.005,
+                z: (Math.random() - 0.5) * 0.003
+            });
+        }
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+        const particleMat = new THREE.PointsMaterial({ color: 0xe0cfb0, size: 0.015, transparent: true, opacity: 0.32 });
+        const particles = new THREE.Points(particleGeometry, particleMat);
+        scene.add(particles);
+        
+        // --- Hiệu ứng glow ---
+        const teaGlowMat = new THREE.MeshStandardMaterial({ color: 0xffaa66, emissive: 0xaa5522, emissiveIntensity: 0.28, transparent: true, opacity: 0.2 });
+        const glowSphere = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 20), teaGlowMat);
+        glowSphere.position.set(0.3, 1.83, 0.25);
+        scene.add(glowSphere);
+        
+        // --- Animation ---
+        let time = 0;
+        
+        function animateSteam() {
+            time += 0.016;
+            
+            steamLines.forEach((item, idx) => {
+                const newCurve = createSteamCurve(item.offX, item.offZ, time * 0.85 + idx);
+                const points = [];
+                for (let t = 0; t <= 1; t += 0.03) {
+                    points.push(newCurve.getPoint(t));
+                }
+                const geomNew = new THREE.BufferGeometry();
+                const verts = [];
+                points.forEach(p => { verts.push(p.x, p.y, p.z); });
+                geomNew.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+                item.line.geometry.dispose();
+                item.line.geometry = geomNew;
+            });
+            
+            const positions = particles.geometry.attributes.position.array;
+            for (let i = 0; i < particleCount; i++) {
+                positions[i*3] += particleVelocities[i].x;
+                positions[i*3+1] += particleVelocities[i].y;
+                positions[i*3+2] += particleVelocities[i].z;
+                
+                if (positions[i*3+1] > 3.4) {
+                    positions[i*3+1] = 0.3;
+                    positions[i*3] = (Math.random() - 0.5) * 5.0;
+                    positions[i*3+2] = (Math.random() - 0.5) * 4.6;
+                }
+                if (Math.abs(positions[i*3]) > 3.6) positions[i*3] *= -0.98;
+                if (Math.abs(positions[i*3+2]) > 3.6) positions[i*3+2] *= -0.98;
+            }
+            particles.geometry.attributes.position.needsUpdate = true;
+            
+            const intensity = 0.5 + Math.sin(time * 1.6) * 0.08;
+            teaLight.intensity = intensity;
+            teaGlowMat.emissiveIntensity = 0.22 + Math.sin(time * 2.0) * 0.08;
+        }
+        
+        // --- Vòng lặp render ---
+        function render() {
+            animateSteam();
+            controls.update();
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+            requestAnimationFrame(render);
+        }
+        
+        render();
+        
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        console.log('Chén trà 3D - Mặt cắt quai chi tiết đã sẵn sàng');
+    </script>
+</body>
+</html>
